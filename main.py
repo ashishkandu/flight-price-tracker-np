@@ -5,14 +5,20 @@ from datetime import datetime, timedelta
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor
 import os
+import requests
+from dotenv import load_dotenv
 
 from fetch_flight_data import FlightsData
 
 
 SAVE_TO_CSV = True
 FLIGHTS_CSV = 'flights.csv'
+PING_TELEGRAM = True
 TARGET_PRICE = 4500.0
 
+load_dotenv()
+API_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 def find_cheapest_flight(flights: Namespace) -> Tuple[Namespace, float]:
     """Retrun the flight having lowest fare regardless of the flight classcode."""
@@ -64,11 +70,25 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
         flight_detail['freebaggage'] = flight.freebaggage
         flight_detail['refundable'] = flight.refundable
         flight_detail['price'] = flight.price
-        flight_detail['alert'] = flight.price == previous_data[previous_data['flightdate'] ==
-                                                               flight.flightdate]['price'].values[-1] != flight.price if not first_run else flight.price < TARGET_PRICE
+        # print(previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[0] != flight.price if not first_run else flight.price < TARGET_PRICE)
+        flight_detail['alert'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1] != flight.price if not first_run else flight.price < TARGET_PRICE
         flight_detail['timestamp'] = datetime.now()
         flight_details.append(flight_detail)
     return pd.DataFrame(flight_details)
+
+
+def telegram_alert(msg_df: pd.DataFrame):
+    if not msg_df[msg_df["alert"]].empty:
+        response = requests.post(
+            url=f'https://api.telegram.org/bot{API_TOKEN}/sendMessage',
+            data={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "parse_mode": "markdown",
+                "text": msg_df[msg_df["alert"]].to_markdown(index=False)
+            }
+        ).status_code
+        return response
+    return False
 
 
 if __name__ == '__main__':
@@ -83,3 +103,6 @@ if __name__ == '__main__':
     if SAVE_TO_CSV:
         flights_df.to_csv(FLIGHTS_CSV, index=False, mode="a",
                           header=not os.path.exists(FLIGHTS_CSV))
+    if PING_TELEGRAM:
+        is_sent = telegram_alert(flights_df)
+        print("Msg sent to telegram:", is_sent)
