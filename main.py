@@ -8,6 +8,10 @@ import os
 import requests
 from dotenv import load_dotenv
 
+import schedule
+from schedule import repeat, every
+import time
+
 from fetch_flight_data import FlightsData
 
 
@@ -46,7 +50,7 @@ def get_dates(days: int):
     return [datetime.strftime(date := date + timedelta(days=1), "%d-%b-%Y") for _ in range(days)]
 
 
-def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame, check_for_days=7):
+def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame, first_run, check_for_days=7):
     flight_details = []
     dates = get_dates(check_for_days)
     with ThreadPoolExecutor(max_workers=check_for_days) as executor:
@@ -70,7 +74,6 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
         flight_detail['freebaggage'] = flight.freebaggage
         flight_detail['refundable'] = flight.refundable
         flight_detail['price'] = flight.price
-        # print(previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[0] != flight.price if not first_run else flight.price < TARGET_PRICE)
         flight_detail['alert'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1] != flight.price if not first_run else flight.price < TARGET_PRICE
         flight_detail['timestamp'] = datetime.now()
         flight_details.append(flight_detail)
@@ -91,18 +94,29 @@ def telegram_alert(msg_df: pd.DataFrame):
     return False
 
 
-if __name__ == '__main__':
+@repeat(every(5).minutes)
+def main():
     first_run: bool = not os.path.exists(FLIGHTS_CSV)
     previous_df = None
     if not first_run:
         previous_df = pd.read_csv(FLIGHTS_CSV)
     flights_data = FlightsData()
 
-    flights_df = process_flight_details(flights_data, previous_df, 15)
-    print(flights_df.to_string(index=False))
+    try:
+        flights_df = process_flight_details(flights_data, previous_df, first_run, 15)
+    except Exception as e:
+        print(e)
+        return
+    # print(flights_df.to_string(index=False))
     if SAVE_TO_CSV:
         flights_df.to_csv(FLIGHTS_CSV, index=False, mode="a",
-                          header=not os.path.exists(FLIGHTS_CSV))
+                        header=not os.path.exists(FLIGHTS_CSV))
     if PING_TELEGRAM:
         is_sent = telegram_alert(flights_df)
         print("Msg sent to telegram:", is_sent)
+
+
+if __name__ == '__main__':
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
