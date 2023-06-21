@@ -13,7 +13,11 @@ from schedule import repeat, every
 import time
 
 from fetch_flight_data import FlightsData
+from logging_ import log_setup
+import logging
 
+_ = log_setup()
+logger = logging.getLogger(__name__)
 
 SAVE_TO_CSV = True
 FLIGHTS_CSV = 'flights.csv'
@@ -65,7 +69,7 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
         data = json.loads(response.content,
                           object_hook=lambda d: Namespace(**d))
         if data.data.outbound.flightsector == "":
-            print('Flight detials not found!\n')
+            logging.warning('[x] Flight detials not found!')
             continue
         flight_detail = {}
         flights = data.data.outbound.flightsector.flightdetail
@@ -99,29 +103,36 @@ def telegram_alert(msg_df: pd.DataFrame):
     return False
 
 
-@repeat(every(10).minutes)
+@repeat(every(20).seconds)
 def main():
+    logger.info("Running checks...")
     first_run: bool = not os.path.exists(FLIGHTS_CSV)
+    if first_run:
+        logger.info("First run detected")
     previous_df = None
     if not first_run:
+        logger.info("Loading previous data...")
         previous_df = pd.read_csv(FLIGHTS_CSV)
     flights_data = FlightsData()
 
     try:
+        logger.info("Processing flight details...")
         flights_df = process_flight_details(flights_data, previous_df, CHECKFORDAYS)
     except Exception as e:
-        print(e.with_traceback())
+        logger.exception(e)
         return
     # print(flights_df.to_string(index=False))
     if SAVE_TO_CSV:
+        logger.info(f"Saving report to {FLIGHTS_CSV}")
         flights_df.to_csv(FLIGHTS_CSV, index=False, mode="a",
                         header=not os.path.exists(FLIGHTS_CSV))
     if PING_TELEGRAM:
         is_sent = telegram_alert(flights_df)
-        print("Msg sent to telegram:", is_sent)
+        logger.info(f"Msg sent to telegram: {is_sent}")
 
 
 if __name__ == '__main__':
+    logger.info("Program started!")
     while True:
         schedule.run_pending()
         time.sleep(1)
