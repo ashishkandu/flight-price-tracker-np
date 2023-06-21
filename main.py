@@ -19,6 +19,8 @@ SAVE_TO_CSV = True
 FLIGHTS_CSV = 'flights.csv'
 PING_TELEGRAM = True
 TARGET_PRICE = 4500.0
+CHECKFORDAYS = 15
+USE_THREAD = True
 
 load_dotenv()
 API_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -50,11 +52,14 @@ def get_dates(days: int):
     return [datetime.strftime(date := date + timedelta(days=1), "%d-%b-%Y") for _ in range(days)]
 
 
-def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame, first_run, check_for_days=7):
+def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame, check_for_days=7):
     flight_details = []
     dates = get_dates(check_for_days)
-    with ThreadPoolExecutor(max_workers=check_for_days) as executor:
-        responses = executor.map(flight_data.getFlightDetails, dates)
+    if USE_THREAD:
+        with ThreadPoolExecutor(max_workers=check_for_days) as executor:
+            responses = executor.map(flight_data.getFlightDetails, dates)
+    else:
+        responses = map(flight_data.getFlightDetails, dates)
 
     for response in responses:
         data = json.loads(response.content,
@@ -74,7 +79,7 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
         flight_detail['freebaggage'] = flight.freebaggage
         flight_detail['refundable'] = flight.refundable
         flight_detail['price'] = flight.price
-        flight_detail['alert'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1] != flight.price if not first_run else flight.price < TARGET_PRICE
+        flight_detail['alert'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1] != flight.price if not previous_data[previous_data['flightdate'] == flight.flightdate].empty else False
         flight_detail['timestamp'] = datetime.now()
         flight_details.append(flight_detail)
     return pd.DataFrame(flight_details)
@@ -94,7 +99,7 @@ def telegram_alert(msg_df: pd.DataFrame):
     return False
 
 
-@repeat(every(5).minutes)
+@repeat(every(10).minutes)
 def main():
     first_run: bool = not os.path.exists(FLIGHTS_CSV)
     previous_df = None
@@ -103,9 +108,9 @@ def main():
     flights_data = FlightsData()
 
     try:
-        flights_df = process_flight_details(flights_data, previous_df, first_run, 15)
+        flights_df = process_flight_details(flights_data, previous_df, CHECKFORDAYS)
     except Exception as e:
-        print(e)
+        print(e.with_traceback())
         return
     # print(flights_df.to_string(index=False))
     if SAVE_TO_CSV:
