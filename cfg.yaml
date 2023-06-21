@@ -1,10 +1,13 @@
 version: 1
 
-disable_existing_loggers: true
+disable_existing_loggers: false
 
 formatters:
   basic:
     format: "[%(levelname)s]: %(asctime)s - %(message)s"
+    datefmt: "%H:%M:%S"
+  file:
+    format: "[%(levelname)s]: %(asctime)s - %(name)s - %(message)s"
     datefmt: "%H:%M:%S"
 
 handlers:
@@ -16,9 +19,15 @@ handlers:
   file_handler:
     class: logging.handlers.RotatingFileHandler
     level: INFO
-    formatter: basic
+    formatter: file
     filename: logs.log
     maxBytes: 1024
+
+loggers:
+  requests: 
+    level: WARNING
+  urllib3:
+    level: WARNING
 
 root:
   level: NOTSET

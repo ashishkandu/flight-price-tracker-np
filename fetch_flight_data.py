@@ -1,6 +1,11 @@
 import requests
 
 from urls import Url
+from logging_ import log_setup
+import logging
+
+_ = log_setup()
+logger = logging.getLogger(__name__)
 
 
 class FlightsData:
@@ -40,6 +45,7 @@ class FlightsData:
             'intAdult': 1,
             'intChild': 0,
         }
+        logger.info(f"Checking flight details for {search_date}")
         response = requests.post(
             Url.FlightAvailability, headers=self.headers, json=data)
         # print(response.json()['data']['outbound']['flightsector']['flightdetail'][-1]['flightdate']) # To see the response timings

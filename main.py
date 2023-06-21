@@ -89,7 +89,7 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
     return pd.DataFrame(flight_details)
 
 
-def telegram_alert(msg_df: pd.DataFrame):
+def telegram_send_alert(msg_df: pd.DataFrame):
     if not msg_df[msg_df["alert"]].empty:
         response = requests.post(
             url=f'https://api.telegram.org/bot{API_TOKEN}/sendMessage',
@@ -99,6 +99,7 @@ def telegram_alert(msg_df: pd.DataFrame):
                 "text": msg_df[msg_df["alert"]].to_markdown(index=False)
             }
         ).status_code
+        logger.info(f'Msg sent to telegram with response code {response}')
         return response
     return False
 
@@ -127,8 +128,7 @@ def main():
         flights_df.to_csv(FLIGHTS_CSV, index=False, mode="a",
                         header=not os.path.exists(FLIGHTS_CSV))
     if PING_TELEGRAM:
-        is_sent = telegram_alert(flights_df)
-        logger.info(f"Msg sent to telegram: {is_sent}")
+        telegram_send_alert(flights_df)
 
 
 if __name__ == '__main__':
