@@ -83,7 +83,9 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
         flight_detail['freebaggage'] = flight.freebaggage
         flight_detail['refundable'] = flight.refundable
         flight_detail['price'] = flight.price
-        flight_detail['alert'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1] != flight.price if not previous_data[previous_data['flightdate'] == flight.flightdate].empty else False
+        flight_detail['alert'] = False
+        if not previous_data.empty:
+            flight_detail['alert'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1] != flight.price if not previous_data.empty or previous_data[previous_data['flightdate'] == flight.flightdate].empty else False
         flight_detail['timestamp'] = datetime.now()
         flight_details.append(flight_detail)
     return pd.DataFrame(flight_details)
@@ -110,11 +112,11 @@ def main():
     first_run: bool = not os.path.exists(FLIGHTS_CSV)
     if first_run:
         logger.info("First run detected")
-    previous_df = None
+    previous_df = pd.DataFrame()
     if not first_run:
         logger.info("Loading previous data...")
         previous_df = pd.read_csv(FLIGHTS_CSV)
-    flights_data = FlightsData()
+    flights_data = FlightsData('KTM', 'BWA')
 
     try:
         logger.info("Processing flight details...")
