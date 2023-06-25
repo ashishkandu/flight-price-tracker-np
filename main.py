@@ -22,7 +22,7 @@ SAVE_TO_CSV = True
 FLIGHTS_CSV = 'flights.csv'
 PING_TELEGRAM = True
 CHECKFORDAYS = 15
-USE_THREAD = True
+USE_THREAD = False
 
 def find_cheapest_flight(flights: Namespace) -> Tuple[Namespace, float]:
     """Retrun the flight having lowest fare regardless of the flight classcode."""

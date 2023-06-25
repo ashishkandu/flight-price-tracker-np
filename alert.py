@@ -19,7 +19,7 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 def generate_message(flight_details: Namespace) -> str:
     """Generate message for telegram alert"""
-    msg = f"The price for {flight_details.sectorpair}, {flight_details.flightdate} has just changed from *{flight_details.previousprice} NPR* to *{flight_details.price} NPR*"
+    msg = f"📬 The price for {flight_details.sectorpair}, {flight_details.flightdate} has just changed from *{flight_details.previousprice} NPR* to *{flight_details.price} NPR*\n\nThanks 🙏"
     return msg
 
 
@@ -27,7 +27,8 @@ def telegram_send_alert(msg_df: pd.DataFrame):
 
     # print(requests.get(url=f'https://api.telegram.org/bot{API_TOKEN}/getUpdates').content)
     if not msg_df[msg_df["alert"]].empty:
-        rows = json.loads(json.dumps(msg_df[msg_df["alert"]].to_dict('records')), object_hook=lambda d: Namespace(**d))
+        rows = json.loads(json.dumps(msg_df[msg_df["alert"]].to_dict(
+            'records')), object_hook=lambda d: Namespace(**d))
         for row in rows:
             response = requests.post(
                 url=f'https://api.telegram.org/bot{API_TOKEN}/sendMessage',
@@ -37,6 +38,7 @@ def telegram_send_alert(msg_df: pd.DataFrame):
                     "text": generate_message(row)
                 }
             )
-            logger.info(f'Msg sent to telegram with response code {response.status_code}')
+            logger.info(
+                f'Msg sent to telegram with response code {response.status_code}')
         return True
     return False
