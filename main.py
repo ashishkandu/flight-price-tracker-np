@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 SAVE_TO_CSV = True
 FLIGHTS_CSV = 'flights.csv'
 PING_TELEGRAM = True
-TARGET_PRICE = 4500.0
 CHECKFORDAYS = 15
 USE_THREAD = True
 
@@ -92,7 +91,10 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
 
 
 def telegram_send_alert(msg_df: pd.DataFrame):
+    # print(requests.get(url=f'https://api.telegram.org/bot{API_TOKEN}/getUpdates').content)
     if not msg_df[msg_df["alert"]].empty:
+        print(msg_df[msg_df["alert"]].to_dict('records'))
+        return
         response = requests.post(
             url=f'https://api.telegram.org/bot{API_TOKEN}/sendMessage',
             data={
@@ -100,13 +102,13 @@ def telegram_send_alert(msg_df: pd.DataFrame):
                 "parse_mode": "markdown",
                 "text": msg_df[msg_df["alert"]].to_markdown(index=False)
             }
-        ).status_code
-        logger.info(f'Msg sent to telegram with response code {response}')
+        )
+        logger.info(f'Msg sent to telegram with response code {response.status_code}')
         return response
     return False
 
 
-@repeat(every(20).seconds)
+@repeat(every(10).minutes)
 def main():
     logger.info("Running checks...")
     first_run: bool = not os.path.exists(FLIGHTS_CSV)
