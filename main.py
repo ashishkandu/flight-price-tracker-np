@@ -5,13 +5,12 @@ from datetime import datetime, timedelta
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor
 import os
-import requests
-from dotenv import load_dotenv
 
 import schedule
 from schedule import repeat, every
 import time
 
+from alert import telegram_send_alert
 from fetch_flight_data import FlightsData
 from logging_ import log_setup
 import logging
@@ -24,10 +23,6 @@ FLIGHTS_CSV = 'flights.csv'
 PING_TELEGRAM = True
 CHECKFORDAYS = 15
 USE_THREAD = True
-
-load_dotenv()
-API_TOKEN = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 def find_cheapest_flight(flights: Namespace) -> Tuple[Namespace, float]:
     """Retrun the flight having lowest fare regardless of the flight classcode."""
@@ -65,8 +60,12 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
         responses = map(flight_data.getFlightDetails, dates)
 
     for response in responses:
-        data = json.loads(response.content,
-                          object_hook=lambda d: Namespace(**d))
+        try:
+            data = json.loads(response.content,
+                            object_hook=lambda d: Namespace(**d))
+        except json.decoder.JSONDecodeError as je:
+            logger.error(f"{je} possible internet issue?")
+            exit(1)
         if data.data.outbound.flightsector == "":
             logging.warning('[x] Flight detials not found!')
             continue
@@ -83,29 +82,14 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
         flight_detail['refundable'] = flight.refundable
         flight_detail['price'] = flight.price
         flight_detail['alert'] = False
+        flight_detail['previousprice'] = 0
         if not previous_data.empty:
-            flight_detail['alert'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1] != flight.price if not previous_data.empty or previous_data[previous_data['flightdate'] == flight.flightdate].empty else False
-        flight_detail['timestamp'] = datetime.now()
+             if not previous_data[previous_data['flightdate'] == flight.flightdate].empty:
+                flight_detail['previousprice'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1]
+                flight_detail['alert'] = flight_detail['previousprice'] != flight.price
+        flight_detail['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S.%f')
         flight_details.append(flight_detail)
     return pd.DataFrame(flight_details)
-
-
-def telegram_send_alert(msg_df: pd.DataFrame):
-    # print(requests.get(url=f'https://api.telegram.org/bot{API_TOKEN}/getUpdates').content)
-    if not msg_df[msg_df["alert"]].empty:
-        print(msg_df[msg_df["alert"]].to_dict('records'))
-        return
-        response = requests.post(
-            url=f'https://api.telegram.org/bot{API_TOKEN}/sendMessage',
-            data={
-                "chat_id": TELEGRAM_CHAT_ID,
-                "parse_mode": "markdown",
-                "text": msg_df[msg_df["alert"]].to_markdown(index=False)
-            }
-        )
-        logger.info(f'Msg sent to telegram with response code {response.status_code}')
-        return response
-    return False
 
 
 @repeat(every(10).minutes)
