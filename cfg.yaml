@@ -8,7 +8,7 @@ formatters:
     datefmt: "%H:%M:%S"
   file:
     format: "[%(levelname)s]: %(asctime)s - %(name)s - %(message)s"
-    datefmt: "%H:%M:%S"
+    (): ext://nepalformatter.NepalFormatter
 
 handlers:
   console:

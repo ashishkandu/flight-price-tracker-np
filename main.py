@@ -13,16 +13,11 @@ import time
 from alert import telegram_send_alert
 from fetch_flight_data import FlightsData
 from logging_ import log_setup
+from variables import tz, CHECKFORDAYS, FLIGHTS_CSV, PING_TELEGRAM, SAVE_TO_CSV, USE_THREAD
 import logging
 
 _ = log_setup()
 logger = logging.getLogger(__name__)
-
-SAVE_TO_CSV = True
-FLIGHTS_CSV = 'flights.csv'
-PING_TELEGRAM = True
-CHECKFORDAYS = 15
-USE_THREAD = False
 
 def find_cheapest_flight(flights: Namespace) -> Tuple[Namespace, float]:
     """Retrun the flight having lowest fare regardless of the flight classcode."""
@@ -45,7 +40,7 @@ def find_cheapest_flight(flights: Namespace) -> Tuple[Namespace, float]:
 
 
 def get_dates(days: int):
-    today_full_date = datetime.now()
+    today_full_date = datetime.now(tz)
     date = today_full_date - timedelta(days=1)
     return [datetime.strftime(date := date + timedelta(days=1), "%d-%b-%Y") for _ in range(days)]
 
@@ -87,7 +82,7 @@ def process_flight_details(flight_data: FlightsData, previous_data: pd.DataFrame
              if not previous_data[previous_data['flightdate'] == flight.flightdate].empty:
                 flight_detail['previousprice'] = previous_data[previous_data['flightdate'] == flight.flightdate]['price'].values[-1]
                 flight_detail['alert'] = flight_detail['previousprice'] != flight.price
-        flight_detail['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S.%f')
+        flight_detail['timestamp'] = datetime.now(tz).strftime('%Y%m%d%H%M%S.%f')
         flight_details.append(flight_detail)
     return pd.DataFrame(flight_details)
 
